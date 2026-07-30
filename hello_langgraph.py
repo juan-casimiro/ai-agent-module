@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import TypedDict, NotRequired
+import httpx
 from langgraph.graph import StateGraph, END
 from langchain_anthropic import ChatAnthropic
 from dotenv import load_dotenv
@@ -35,12 +36,16 @@ def answer_general(state: GraphState) -> GraphState:
 
 
 def answer_from_document(state: GraphState) -> GraphState:
-    # placeholder for now — we'll wire in real RAG retrieval next
-    return {**state, "answer": f"[Would call RAG tool for: {state['question']}]"}
-
+    response = httpx.post(
+        "http://localhost:8000/query",
+        json={"question": state["question"], "n_results": 8},
+    )
+    result = response.json()
+    return {**state, "answer": result["answer"]}
 
 def route_decision(state: GraphState) -> str:
     return Node.DOCUMENT_PATH.value if "DOCUMENT" in state["classification"] else Node.GENERAL_PATH.value
+
 
 graph = StateGraph(GraphState)
 graph.add_node(Node.CLASSIFY.value, classify_question)
@@ -64,7 +69,7 @@ app = graph.compile()
 if __name__ == "__main__":
     for q in [
         "What is the capital of France?",
-        "What did the Minnesota study find about ChatGPT?",
+        "What did the University of Minnesota Law School study find about ChatGPT?",
     ]:
         result = app.invoke({"question": q})
         print(
