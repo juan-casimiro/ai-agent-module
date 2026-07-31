@@ -76,7 +76,7 @@ def classify_question(state: GraphState) -> GraphState:
     
     classification = llm.with_structured_output(Classification).invoke(CLASSIFICATION_PROMPT)
 
-    return {**state, "classification": classification.category}
+    return {**state, "classification": classification.category.value}
 
 
 def answer_general(state: GraphState) -> GraphState:
@@ -143,11 +143,17 @@ def answer_with_calculation(state: GraphState) -> GraphState:
 
 def route_decision(state: GraphState) -> str:
     mapping = {
-        Category.DOCUMENT: Node.DOCUMENT_PATH.value,
-        Category.CALCULATION: Node.CALCULATION_PATH.value,
-        Category.GENERAL: Node.GENERAL_PATH.value,
+        Category.DOCUMENT.value: Node.DOCUMENT_PATH.value,
+        Category.CALCULATION.value: Node.CALCULATION_PATH.value,
+        Category.GENERAL.value: Node.GENERAL_PATH.value,
     }
-    return mapping[state["classification"]]
+    classification = state["classification"]
+    if classification not in mapping:
+        raise ValueError(
+            f"Unexpected classification '{classification}' — this should be "
+            f"impossible given the Category enum constraint, indicating a bug."
+        )
+    return mapping[classification]
 
 graph = StateGraph(GraphState)
 graph.add_node(Node.CLASSIFY.value, classify_question)
