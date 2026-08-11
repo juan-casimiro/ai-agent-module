@@ -1,13 +1,15 @@
 from enum import Enum
+from operator import add
 import re
 from textwrap import dedent
-from typing import Literal, Optional, TypedDict, NotRequired
+from typing import Annotated, Literal, Optional, TypedDict, NotRequired
 import httpx
 from langgraph.graph import StateGraph, END
 from langchain_anthropic import ChatAnthropic
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from simpleeval import simple_eval
+from langgraph.checkpoint.memory import MemorySaver
 
 load_dotenv()
 
@@ -29,6 +31,7 @@ class GraphState(TypedDict):
     classification: NotRequired[str]
     answer: NotRequired[str]
     sources: NotRequired[list[str]]
+    history: Annotated[list[dict], add]
 
 class CalculationRequest(BaseModel):
     expression: str
@@ -84,12 +87,16 @@ def classify_question(state: GraphState) -> GraphState:
 
     classification = llm.with_structured_output(Classification).invoke(CLASSIFICATION_PROMPT)
 
-    return {**state, "classification": classification.category.value}
+    return {"question": state["question"], "classification": classification.category.value}
 
+def record_turn(state: GraphState) -> GraphState:
+    return {
+        "history": [{"question": state["question"], "answer": state["answer"]}],
+    }
 
 def answer_general(state: GraphState) -> GraphState:
     response = llm.invoke(state["question"])
-    return {**state, "answer": response.content}
+    return {"answer": response.content, "sources": []}
 
 
 def answer_from_document(state: GraphState) -> GraphState:
@@ -98,7 +105,7 @@ def answer_from_document(state: GraphState) -> GraphState:
         json={"question": state["question"], "n_results": 8},
     )
     result = response.json()
-    return {**state, "answer": result["answer"], "sources": result.get("sources", [])}
+    return {"answer": result["answer"], "sources": result.get("sources", [])}
 
 def answer_with_calculation(state: GraphState) -> GraphState:
     CALCULATION_PROMPT = dedent(f"""\
@@ -135,19 +142,19 @@ def answer_with_calculation(state: GraphState) -> GraphState:
     calc_request = llm.with_structured_output(CalculationRequest).invoke(CALCULATION_PROMPT)
 
     if not re.fullmatch(r"[\d\s+\-*/().]+", calc_request.expression):
-        return {**state, "answer": f"Unsafe or unparseable expression: {calc_request.expression}"}
+        return {"answer": f"Unsafe or unparseable expression: {calc_request.expression}"}
 
     try:
         result = simple_eval(calc_request.expression)
     except ZeroDivisionError:
-        return {**state, "answer": "Error: division by zero"}
+        return {"answer": "Error: division by zero"}
     except Exception as e:
-        return {**state, "answer": f"Invalid expression: {e}"}
+        return {"answer": f"Invalid expression: {e}"}
     
     if calc_request.decimal_places is not None:
         result = round(result, calc_request.decimal_places)
 
-    return {**state, "answer": f"The calculation {calc_request.expression} = {result}"}
+    return {"answer": f"The calculation {calc_request.expression} = {result}", "sources": []}
 
 def route_decision(state: GraphState) -> str:
     mapping = {
@@ -179,11 +186,14 @@ graph.add_conditional_edges(
         Node.CALCULATION_PATH.value: Node.CALCULATION_PATH.value,
     }
 )
-graph.add_edge(Node.DOCUMENT_PATH.value, END)
-graph.add_edge(Node.GENERAL_PATH.value, END)
-graph.add_edge(Node.CALCULATION_PATH.value, END)
+graph.add_node("record_turn", record_turn)
 
-app = graph.compile()
+graph.add_edge(Node.DOCUMENT_PATH.value, "record_turn")
+graph.add_edge(Node.GENERAL_PATH.value, "record_turn")
+graph.add_edge(Node.CALCULATION_PATH.value, "record_turn")
+graph.add_edge("record_turn", END)
+
+app = graph.compile(checkpointer=MemorySaver())
 
 if __name__ == "__main__":
     for q in [
@@ -191,7 +201,9 @@ if __name__ == "__main__":
         "What AUC did the CCTA-derived nomogram achieve for predicting MACE, in both the derivation and external validation cohorts?",
         "What is 91 times 1.15, rounded to two decimal places?",
     ]:
-        result = app.invoke({"question": q})
+        config = {"configurable": {"thread_id": "demo-session-1"}}
+        result = app.invoke({"question": q}, config=config)
+        print(f"history: {result.get("history")}")
         output = (
             f"Q: {q}\nClassification: {result['classification']}\n"
             f"A: {result['answer']}\n"
