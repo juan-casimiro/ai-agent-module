@@ -28,6 +28,7 @@ class GraphState(TypedDict):
     question: str
     classification: NotRequired[str]
     answer: NotRequired[str]
+    sources: NotRequired[list[str]]
 
 class CalculationRequest(BaseModel):
     expression: str
@@ -97,7 +98,7 @@ def answer_from_document(state: GraphState) -> GraphState:
         json={"question": state["question"], "n_results": 8},
     )
     result = response.json()
-    return {**state, "answer": result["answer"]}
+    return {**state, "answer": result["answer"], "sources": result.get("sources", [])}
 
 def answer_with_calculation(state: GraphState) -> GraphState:
     CALCULATION_PROMPT = dedent(f"""\
@@ -191,6 +192,10 @@ if __name__ == "__main__":
         "What is 91 times 1.15, rounded to two decimal places?",
     ]:
         result = app.invoke({"question": q})
-        print(
-            f"Q: {q}\nClassification: {result['classification']}\nA: {result['answer']}\n"
+        output = (
+            f"Q: {q}\nClassification: {result['classification']}\n"
+            f"A: {result['answer']}\n"
         )
+        if result.get("sources"):
+            output += f"Sources: {', '.join(result['sources'])}\n"
+        print(output)
