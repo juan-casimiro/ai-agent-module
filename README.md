@@ -14,8 +14,8 @@ classify_question — LLM classifies intent via structured output
 ▼
 route_decision — routes based on classification
 │
-├── DOCUMENT ──────► answer_from_document
-│ (calls the Research Assistant RAG service)
+├── BIOMED ──────► answer_from_document
+│ (calls the Research Assistant RAG service, BIOMED specific content)
 │
 ├── CALCULATION ───► answer_with_calculation
 │ (LLM extracts expression + precision,
@@ -66,11 +66,10 @@ routing check.
 
 ## Known limitations
 
-- The document-lookup path inherits all known limitations of the
-  underlying RAG service (see that project's ADR), including sensitivity
-  to exact query phrasing — confirmed directly through agent-level
-  testing (e.g., "University of Minnesota Law School study" retrieves
-  correctly; a shortened "Minnesota study" rephrasing does not).
+- The document-lookup path is BIOMED-specific right now 
+(the underlying RAG service's corpus is scoped to diabetes, cardiology, and oncology — see `corpus_manifest.json` in the `ai-research-assistant` project). 
+A non-biomed document question will either get misrouted to `GENERAL` or hit empty/irrelevant retrieval.
+- The document-lookup path inherits all known limitations of the underlying RAG service (see that project's ADR), including sensitivity to exact query phrasing. Multi-turn phrasing/reference issues (e.g. follow-up questions relying on earlier context) are not addressed — there is no conversation memory yet (see below).
 - No conversation memory yet — each invocation is stateless.
 - Classification is a single LLM call with no retry/fallback if it
   returns an unexpected result (mitigated by the fail-loud check in
@@ -82,3 +81,4 @@ routing check.
 - Additional tools (e.g., web search)
 - Query rewriting or hybrid search on the document-lookup path, to
   address the phrasing-sensitivity limitation
+- This project will grow biomed-specific capability (tools, prompts, maybe a dedicated BIOMED_TASK category)

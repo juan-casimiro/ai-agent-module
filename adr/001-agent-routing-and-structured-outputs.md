@@ -90,3 +90,35 @@ clear error.
   documented RAG limitation (query phrasing sensitivity) directly
   through agent-level testing, confirming the same issue found in
   isolated RAG evaluation also affects end-to-end agent behavior.
+
+## Update: Corpus scope narrowed to BIOMED, category split planned
+
+The `ai-research-assistant` corpus has been narrowed to biomedical
+content only (diabetes, cardiology, oncology — see that project's
+`corpus_manifest.json`). The current `Category` enum (`BIOMED`,
+`CALCULATION`, `GENERAL`) still treats document-lookup as
+domain-agnostic, which is no longer an honest reflection of what the
+underlying service can actually answer.
+
+**Decision:** introduce a dedicated `BIOMED` category rather than
+continuing to route biomed document questions through a generically-
+named `BIOMED` category. This is deliberate, not just a rename:
+
+- It keeps `Category` an honest contract (per this ADR's own principle
+  above — plain types/names that reflect actual runtime meaning),
+  rather than `BIOMED` quietly meaning "biomed document" everywhere
+  it's read.
+- It leaves room for biomed-specific behavior beyond routing — e.g. a
+  prompt tuned for clinical terminology, or tool-specific handling —
+  without overloading a generic category name.
+- It matches the RAG service's own trajectory: that project is a
+  domain-agnostic pipeline currently pointed at a biomed corpus — same
+  distinction being drawn here at the agent-routing level.
+
+**Not yet implemented** — this is a recorded decision for upcoming
+work, not a completed change. When implemented: `Category` gains
+`BIOMED`, `classify_question`'s prompt and examples are updated to
+distinguish biomed document questions from general document questions
+(if `GENERAL` document-lookup returns), and `route_decision`'s mapping
+is extended accordingly. The fail-loud check (see above) should catch
+any gap in that mapping automatically, per its original purpose.

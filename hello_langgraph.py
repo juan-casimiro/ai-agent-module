@@ -20,7 +20,7 @@ class Node(Enum):
     CALCULATION_PATH = "calculation_path"
 
 class Category(Enum):
-    DOCUMENT = "DOCUMENT"
+    BIOMED = "BIOMED"
     CALCULATION = "CALCULATION"
     GENERAL = "GENERAL"    
 
@@ -45,9 +45,10 @@ def classify_question(state: GraphState) -> GraphState:
 
         # Task
         Classify the question into exactly one category:
-        - {Category.DOCUMENT.value}: the question asks about specific facts, findings, \
-        or content that would only exist in a particular reference document (e.g., a \
-        study, report, or paper) — not something you'd know from general knowledge.
+        - {Category.BIOMED.value}: the question asks about specific findings, data, \
+        or content from biomedical/clinical research literature (e.g., a named \
+        study, trial, or clinical review) — not something you'd know from general \
+        knowledge, and specifically biomedical in subject matter.
         - {Category.CALCULATION.value}: the question requires precise arithmetic or \
         numeric computation to answer correctly.
         - {Category.GENERAL.value}: the question can be answered confidently from \
@@ -63,9 +64,15 @@ def classify_question(state: GraphState) -> GraphState:
         Question: "What is the capital of France?"
         -> {Category.GENERAL.value}
 
-        Question: "What did the University of Minnesota Law School study find \
-        about ChatGPT's exam performance?"
-        -> {Category.DOCUMENT.value}
+        Question: "What AUC did Attia et al.'s CNN model achieve for identifying \
+        patients with prevalent AF during sinus rhythm from standard 12-lead ECGs?"
+        -> {Category.BIOMED.value}
+
+        Question: "What did the company's Q3 earnings report say about iPhone \
+        sales?"
+        # Not biomedical, and not in any ingested corpus — document-shaped
+        # phrasing alone doesn't mean a document lookup is possible.
+        -> {Category.GENERAL.value}
 
         Question: "What is 15% of 340, rounded to the nearest whole number?"
         -> {Category.CALCULATION.value}
@@ -73,7 +80,7 @@ def classify_question(state: GraphState) -> GraphState:
         # Input
         Question: {state['question']}
         """)
-    
+
     classification = llm.with_structured_output(Classification).invoke(CLASSIFICATION_PROMPT)
 
     return {**state, "classification": classification.category.value}
@@ -143,7 +150,7 @@ def answer_with_calculation(state: GraphState) -> GraphState:
 
 def route_decision(state: GraphState) -> str:
     mapping = {
-        Category.DOCUMENT.value: Node.DOCUMENT_PATH.value,
+        Category.BIOMED.value: Node.DOCUMENT_PATH.value,
         Category.CALCULATION.value: Node.CALCULATION_PATH.value,
         Category.GENERAL.value: Node.GENERAL_PATH.value,
     }
@@ -180,7 +187,7 @@ app = graph.compile()
 if __name__ == "__main__":
     for q in [
         "What is the capital of France?",
-        "What did the University of Minnesota Law School study find about ChatGPT?",
+        "What AUC did the CCTA-derived nomogram achieve for predicting MACE, in both the derivation and external validation cohorts?",
         "What is 91 times 1.15, rounded to two decimal places?",
     ]:
         result = app.invoke({"question": q})
