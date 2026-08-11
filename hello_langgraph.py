@@ -239,17 +239,18 @@ app = graph.compile(checkpointer=MemorySaver())
 
 if __name__ == "__main__":
     for q in [
-        "I want to visit the capital of France, how's this city called? Brief response only the city name",
+        "I want to visit the capital of France, how's this city called? Brief response, only the city name",
         "What AUC did the CCTA-derived nomogram achieve for predicting MACE, in both the derivation and external validation cohorts?",
         "What is 91 times 1.15, rounded to two decimal places?",
-        "How tall is its most famous iron landmark in the city I want to visit, in metres?"
+        "How tall is its most famous iron landmark in the city I want to visit, in metres? Brief response, tower name and height"
     ]:
         config = {"configurable": {"thread_id": "demo-session-1"}}
         result = app.invoke({"question": q}, config=config)
-      #  print(f"history: {result.get("history")}")
         print(f"resolved_question: {result.get('resolved_question')}")
         output = (
-            f"Q: {q}\nClassification: {result['classification']}\n"
+            f"Original Q: {q}\n"
+            f"Resolved Q: {result.get('resolved_question')}\n"
+            f"Classification: {result['classification']}\n"
             f"A: {result['answer']}\n"
         )
         if result.get("sources"):
