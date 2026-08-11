@@ -28,6 +28,7 @@ class Category(Enum):
 
 class GraphState(TypedDict):
     question: str
+    resolved_question: NotRequired[str]
     classification: NotRequired[str]
     answer: NotRequired[str]
     sources: NotRequired[list[str]]
@@ -39,6 +40,39 @@ class CalculationRequest(BaseModel):
 
 class Classification(BaseModel):
     category: Category
+
+def condense_question(state: GraphState) -> GraphState:
+    history = state.get("history", [])
+    if not history:
+        return {"resolved_question": state["question"]}
+
+    CONDENSE_PROMPT = dedent(f"""\
+        # Role
+        You resolve a follow-up question into a fully standalone question, \
+        using the conversation history for context. You do not answer the \
+        question.
+
+        # Task
+        Given the conversation history and a new follow-up question, rewrite \
+        the follow-up into a standalone question that makes sense with NO \
+        prior context — resolving pronouns, ellipsis ("what about X?"), and \
+        implicit references. If the new question is already standalone, \
+        return it unchanged. If the follow-up references a specific number \
+        or fact stated in a previous answer, include that concrete value \
+        explicitly in the rewritten question.
+
+        # History
+        {format_history(history)}
+
+        # New question
+        {state['question']}
+
+        # Output
+        Return ONLY the rewritten standalone question, nothing else.
+        """)
+
+    resolved = llm.invoke(CONDENSE_PROMPT).content
+    return {"resolved_question": resolved}
 
 def classify_question(state: GraphState) -> GraphState:
     CLASSIFICATION_PROMPT = dedent(f"""\
@@ -82,27 +116,32 @@ def classify_question(state: GraphState) -> GraphState:
         -> {Category.CALCULATION.value}
 
         # Input
-        Question: {state['question']}
+        Question: {state['resolved_question']}
         """)
 
     classification = llm.with_structured_output(Classification).invoke(CLASSIFICATION_PROMPT)
 
-    return {"question": state["question"], "classification": classification.category.value}
+    return {"classification": classification.category.value}
 
 def record_turn(state: GraphState) -> GraphState:
     return {
         "history": [{"question": state["question"], "answer": state["answer"]}],
     }
 
+def format_history(history: list[dict]) -> str:
+    return "\n\n".join(
+        f"Q: {turn['question']}\nA: {turn['answer']}" for turn in history
+    )
+
 def answer_general(state: GraphState) -> GraphState:
-    response = llm.invoke(state["question"])
+    response = llm.invoke(state["resolved_question"])
     return {"answer": response.content, "sources": []}
 
 
 def answer_from_document(state: GraphState) -> GraphState:
     response = httpx.post(
         "http://localhost:8000/query",
-        json={"question": state["question"], "n_results": 8},
+        json={"question": state["resolved_question"], "n_results": 8},
     )
     result = response.json()
     return {"answer": result["answer"], "sources": result.get("sources", [])}
@@ -136,7 +175,7 @@ def answer_with_calculation(state: GraphState) -> GraphState:
         -> expression: "91 * 1.15", decimal_places: 2
 
         # Input
-        Question: {state['question']}
+        Question: {state['resolved_question']}
         """)
 
     calc_request = llm.with_structured_output(CalculationRequest).invoke(CALCULATION_PROMPT)
@@ -171,12 +210,15 @@ def route_decision(state: GraphState) -> str:
     return mapping[classification]
 
 graph = StateGraph(GraphState)
+graph.add_node("condense_question", condense_question)
 graph.add_node(Node.CLASSIFY.value, classify_question)
 graph.add_node(Node.DOCUMENT_PATH.value, answer_from_document)
 graph.add_node(Node.GENERAL_PATH.value, answer_general)
 graph.add_node(Node.CALCULATION_PATH.value, answer_with_calculation)
 
-graph.set_entry_point(Node.CLASSIFY.value)
+graph.set_entry_point("condense_question")
+graph.add_edge("condense_question", Node.CLASSIFY.value)
+
 graph.add_conditional_edges(
     Node.CLASSIFY.value,
     route_decision,
@@ -197,13 +239,15 @@ app = graph.compile(checkpointer=MemorySaver())
 
 if __name__ == "__main__":
     for q in [
-        "What is the capital of France?",
+        "I want to visit the capital of France, how's this city called? Brief response only the city name",
         "What AUC did the CCTA-derived nomogram achieve for predicting MACE, in both the derivation and external validation cohorts?",
         "What is 91 times 1.15, rounded to two decimal places?",
+        "How tall is its most famous iron landmark in the city I want to visit, in metres?"
     ]:
         config = {"configurable": {"thread_id": "demo-session-1"}}
         result = app.invoke({"question": q}, config=config)
-        print(f"history: {result.get("history")}")
+      #  print(f"history: {result.get("history")}")
+        print(f"resolved_question: {result.get('resolved_question')}")
         output = (
             f"Q: {q}\nClassification: {result['classification']}\n"
             f"A: {result['answer']}\n"
