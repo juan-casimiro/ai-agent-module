@@ -2,7 +2,7 @@ from enum import Enum
 from operator import add
 import re
 from textwrap import dedent
-from typing import Annotated, Literal, Optional, TypedDict, NotRequired
+from typing import Annotated, Optional, TypedDict, NotRequired
 import httpx
 from langgraph.graph import StateGraph, END
 from langchain_anthropic import ChatAnthropic
@@ -92,8 +92,6 @@ def condense_question(state: GraphState) -> GraphState:
         "resolved_question": condensed.resolved_question,
         "condensation_reasoning": condensed.reasoning,
     }
-
-    return {"resolved_question": resolved}
 
 def classify_question(state: GraphState) -> GraphState:
     CLASSIFICATION_PROMPT = dedent(f"""\
