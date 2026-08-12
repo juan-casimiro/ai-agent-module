@@ -29,6 +29,7 @@ class Category(Enum):
 class GraphState(TypedDict):
     question: str
     resolved_question: NotRequired[str]
+    condensation_reasoning: NotRequired[str]
     classification: NotRequired[str]
     answer: NotRequired[str]
     sources: NotRequired[list[str]]
@@ -41,6 +42,10 @@ class CalculationRequest(BaseModel):
 class Classification(BaseModel):
     category: Category
 
+class CondensedQuestion(BaseModel):
+    resolved_question: str
+    reasoning: str  # short debug note: why the question was rewritten this way
+
 def condense_question(state: GraphState) -> GraphState:
     history = state.get("history", [])
     if not history:
@@ -48,18 +53,29 @@ def condense_question(state: GraphState) -> GraphState:
 
     CONDENSE_PROMPT = dedent(f"""\
         # Role
-        You resolve a follow-up question into a fully standalone question, \
-        using the conversation history for context. You do not answer the \
-        question.
+        You resolve a follow-up question into a fully standalone question, using \
+        the conversation history for context. You do not answer the question.
 
         # Task
-        Given the conversation history and a new follow-up question, rewrite \
-        the follow-up into a standalone question that makes sense with NO \
-        prior context — resolving pronouns, ellipsis ("what about X?"), and \
-        implicit references. If the new question is already standalone, \
-        return it unchanged. If the follow-up references a specific number \
-        or fact stated in a previous answer, include that concrete value \
-        explicitly in the rewritten question.
+        Given the conversation history and a new follow-up question, rewrite the \
+        follow-up into a standalone question that makes sense with NO prior \
+        context — resolving pronouns, ellipsis ("what about X?"), and implicit \
+        references. If the new question is already standalone, return it \
+        unchanged. If the follow-up references a specific number or fact stated \
+        in a previous answer, include that concrete value explicitly in the \
+        rewritten question.
+
+        # Constraints
+        - When a referenced value is a percentage, write it as a plain number \
+        with no "%" sign (e.g. "50", not "50%") — this avoids ambiguity in any \
+        downstream calculation on that value.
+
+        # Examples
+        History:
+        Q: What was the reported increase?
+        A: The study found a 70% increase in incidents.
+        New question: What's that number times 5?
+        -> What is 70 multiplied by 5?
 
         # History
         {format_history(history)}
@@ -71,7 +87,12 @@ def condense_question(state: GraphState) -> GraphState:
         Return ONLY the rewritten standalone question, nothing else.
         """)
 
-    resolved = llm.invoke(CONDENSE_PROMPT).content
+    condensed = llm.with_structured_output(CondensedQuestion).invoke(CONDENSE_PROMPT)
+    return {
+        "resolved_question": condensed.resolved_question,
+        "condensation_reasoning": condensed.reasoning,
+    }
+
     return {"resolved_question": resolved}
 
 def classify_question(state: GraphState) -> GraphState:
@@ -163,7 +184,14 @@ def answer_with_calculation(state: GraphState) -> GraphState:
 
         # Constraints
         - The expression must contain ONLY numbers, +, -, *, /, and parentheses. \
-        Never include function calls, variable names, or any other syntax.
+        Never include function calls, variable names, or any other syntax, \
+        including "%".
+        - If the question refers to a percentage figure by its number (e.g. \
+        "that 24% increase" or "a 24 percent rise"), treat the number itself \
+        (24) as the value to use in the expression — do NOT convert it to a \
+        decimal fraction (0.24) unless the question explicitly asks for "24% of" \
+        some other quantity, which is a different operation (multiplication by \
+        0.24) than "24 times" something.
         - If the question does not mention rounding or precision at all, set \
         decimal_places to null — do not assume a default.
 
@@ -173,6 +201,9 @@ def answer_with_calculation(state: GraphState) -> GraphState:
 
         Question: "What's 91 times 1.15, rounded to two decimal places?"
         -> expression: "91 * 1.15", decimal_places: 2
+
+        Question: "What is 26 multiplied by 7, rounded to 1 decimal place?"
+        -> expression: "26 * 7", decimal_places: 1
 
         # Input
         Question: {state['resolved_question']}
@@ -238,21 +269,30 @@ graph.add_edge("record_turn", END)
 app = graph.compile(checkpointer=MemorySaver())
 
 if __name__ == "__main__":
-    for q in [
-        "I want to visit the capital of France, how's this city called? Brief response, only the city name",
-        "What AUC did the CCTA-derived nomogram achieve for predicting MACE, in both the derivation and external validation cohorts?",
-        "What is 91 times 1.15, rounded to two decimal places?",
-        "How tall is its most famous iron landmark in the city I want to visit, in metres? Brief response, tower name and height"
-    ]:
-        config = {"configurable": {"thread_id": "demo-session-1"}}
+    thread_id = "demo-thread-1"
+    config = {"configurable": {"thread_id": thread_id}}
+
+    conversation = [
+        "What effect did the spring daylight saving transition have on MI "
+        "rates, according to the Sadhu et al. analysis in the diabetes "
+        "cardiovascular outcomes review?",
+        "What about the fall transition?",
+        "And what's that spring percentage increase times 3, rounded to 1 decimal place?",
+    ]
+
+    final_state = None
+    for i, q in enumerate(conversation, start=1):
         result = app.invoke({"question": q}, config=config)
-        print(f"resolved_question: {result.get('resolved_question')}")
-        output = (
-            f"Original Q: {q}\n"
-            f"Resolved Q: {result.get('resolved_question')}\n"
-            f"Classification: {result['classification']}\n"
-            f"A: {result['answer']}\n"
-        )
+        final_state = result
+
+        print(f"--- Turn {i} ---")
+        print(f"Question:          {q}")
+        print(f"Resolved question: {result.get('resolved_question')}")
+        print(f"Condensation reason: {result.get('condensation_reasoning', '(no history — skipped)')}")
+        print(f"Classification:    {result['classification']}")
+        print(f"Answer:            {result['answer']}")
         if result.get("sources"):
-            output += f"Sources: {', '.join(result['sources'])}\n"
-        print(output)
+            print(f"Sources:           {', '.join(result['sources'])}")
+        print()
+
+    print(f"Final history length: {len(final_state['history'])}")
