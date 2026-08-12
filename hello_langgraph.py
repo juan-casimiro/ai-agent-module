@@ -165,7 +165,7 @@ def answer_from_document(state: GraphState) -> GraphState:
     result = response.json()
     return {"answer": result["answer"], "sources": result.get("sources", [])}
 
-def answer_with_calculation(state: GraphState) -> GraphState:
+def answer_with_calculation(state: GraphState, llm=llm) -> GraphState:
     CALCULATION_PROMPT = dedent(f"""\
         # Role
         You are a precise calculation-extraction assistant. Your job is to parse \
