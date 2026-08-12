@@ -9,6 +9,10 @@ or direct general-knowledge answering.
 Question
 │
 ▼
+condense_question — resolves follow-up questions against conversation
+history into a standalone question (skipped if no prior history)
+│
+▼
 classify_question — LLM classifies intent via structured output
 │
 ▼
@@ -23,6 +27,14 @@ route_decision — routes based on classification
 │
 └── GENERAL ───────► answer_general
 (LLM answers directly)
+│
+▼
+record_turn — appends {question, answer} to conversation history
+(runs on every path before END)
+
+Conversation state persists across calls via LangGraph's `MemorySaver`
+checkpointer, keyed by `thread_id`. Each `thread_id` is an isolated
+conversation — no state is shared between threads.
 ```
 ## Tech stack
 
@@ -31,7 +43,8 @@ route_decision — routes based on classification
   works identically across supported providers, not tied to Anthropic
 - **simpleeval** — safe evaluation of LLM-extracted arithmetic expressions
 - **httpx** — calls the separately running RAG service (Portfolio Project 2)
-
+- **langgraph-checkpoint** (`MemorySaver`) — in-memory conversation
+  checkpointing, keyed by `thread_id`
 ## Setup
 
 ```bash
@@ -54,8 +67,22 @@ document-lookup path to work.
 python hello_langgraph.py
 ```
 
-Runs three example questions, one per path (general knowledge, document
-lookup, calculation), printing the classification and answer for each.
+Runs a scripted 3-turn conversation on a single `thread_id`, demonstrating:
+- Turn 1: a standalone BIOMED question (no history yet, condensation
+  skipped)
+- Turn 2: a follow-up ("What about the fall transition?") resolved
+  against turn 1's topic via `condense_question`
+- Turn 3: a follow-up referencing a specific number from turn 2's
+  answer, resolved and correctly routed to CALCULATION
+
+Each turn prints the original question, the resolved (condensed)
+question, a short reasoning note explaining the resolution, the
+classification, and the answer. A final check confirms
+`len(history) == 3` — one entry per turn, not duplicated.
+
+The script also runs a fourth, isolated check on a second `thread_id`,
+reusing turn 2's exact follow-up phrasing with no prior history, to
+confirm conversation state does not leak across threads.
 
 ## Design decisions
 
@@ -66,19 +93,30 @@ routing check.
 
 ## Known limitations
 
-- The document-lookup path is BIOMED-specific right now 
-(the underlying RAG service's corpus is scoped to diabetes, cardiology, and oncology — see `corpus_manifest.json` in the `ai-research-assistant` project). 
+- The document-lookup path is BIOMED-specific right now
+(the underlying RAG service's corpus is scoped to diabetes, cardiology, and oncology — see `corpus_manifest.json` in the `ai-research-assistant` project).
 A non-biomed document question will either get misrouted to `GENERAL` or hit empty/irrelevant retrieval.
-- The document-lookup path inherits all known limitations of the underlying RAG service (see that project's ADR), including sensitivity to exact query phrasing. Multi-turn phrasing/reference issues (e.g. follow-up questions relying on earlier context) are not addressed — there is no conversation memory yet (see below).
-- No conversation memory yet — each invocation is stateless.
+- The document-lookup path inherits all known limitations of the underlying RAG service (see that project's ADR), including sensitivity to exact query phrasing.
+- Conversation history is unbounded and passed as raw text into every
+  `condense_question` call. Fine for short demo conversations; a long-
+  running conversation would grow the condensation prompt (and its
+  token cost) linearly with turn count, with no truncation or
+  summarization of older turns.
 - Classification is a single LLM call with no retry/fallback if it
   returns an unexpected result (mitigated by the fail-loud check in
   `route_decision`, but not gracefully recovered from).
+- `MemorySaver` is in-memory only — conversation history does not
+  survive a process restart. Deliberate choice for a portfolio project,
+  not a production-readiness gap (see ADR-001 update).
 
 ## Possible future improvements
 
-- Conversation memory via LangGraph checkpointing
+## Possible future improvements
+
 - Additional tools (e.g., web search)
 - Query rewriting or hybrid search on the document-lookup path, to
   address the phrasing-sensitivity limitation
 - This project will grow biomed-specific capability (tools, prompts, maybe a dedicated BIOMED_TASK category)
+- Automated tests (unit tests for `route_decision` and the calculation
+  safety regex/`simpleeval` boundary, then mocked classification tests)
+  — currently the only verification is this manual demo script

@@ -122,3 +122,41 @@ distinguish biomed document questions from general document questions
 (if `GENERAL` document-lookup returns), and `route_decision`'s mapping
 is extended accordingly. The fail-loud check (see above) should catch
 any gap in that mapping automatically, per its original purpose.
+
+## Update: Conversation memory, query condensation, and the reducer trap
+
+### Decision: `MemorySaver`, keyed by `thread_id`
+
+In-memory checkpointing only — deliberate for a portfolio project, not
+a durability requirement. Verified thread isolation directly: reusing
+an established follow-up phrase as the first message on a fresh
+`thread_id` correctly failed to resolve, confirming state isn't shared
+across threads.
+
+### Bug: `{**state, ...}` silently duplicates accumulating fields
+
+`history` uses `Annotated[list[dict], add]` so LangGraph concatenates
+returned lists rather than overwriting. But every node was returning
+`{**state, ...}`, which re-includes the already-accumulated `history`
+on every hop — the `add` reducer concatenates it again each time.
+Observed: history length grew 1 → 5 → 21 instead of 1 → 2 → 3.
+
+**Fix:** nodes now return only the fields they actually set, never a
+full `**state` spread. **Principle:** any field with a non-default
+reducer must be treated as write-only by nodes that don't modify it.
+
+### Decision: `question` vs `resolved_question`
+
+`condense_question` rewrites follow-ups into standalone questions;
+downstream nodes read `resolved_question`. `record_turn` writes the
+raw `question` into `history` instead — history also feeds future
+condensation calls, so it should reflect the user's actual phrasing,
+not an LLM-rewritten version.
+
+### Decision: condensation reasoning is debug-only
+
+`condense_question` returns structured output (`resolved_question` +
+`reasoning`), consistent with this project's existing preference for
+structured outputs over parsed text. `reasoning` is not written into
+`history` — history's only consumer is future condensation prompts, and
+debug commentary has no value there while adding token cost.
