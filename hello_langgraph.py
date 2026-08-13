@@ -33,6 +33,8 @@ class GraphState(TypedDict):
     classification: NotRequired[str]
     answer: NotRequired[str]
     sources: NotRequired[list[str]]
+    retry_count: NotRequired[int]
+    retry_reason: NotRequired[str]
     history: Annotated[list[dict], add]
 
 class CalculationRequest(BaseModel):
