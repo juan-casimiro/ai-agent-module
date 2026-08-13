@@ -165,7 +165,19 @@ def answer_from_document(state: GraphState) -> GraphState:
         json={"question": state["resolved_question"], "n_results": 8},
     )
     result = response.json()
-    return {"answer": result["answer"], "sources": result.get("sources", [])}
+    sources = result.get("sources", [])
+    
+    # Trigger detection: if retrieval is empty, flag for retry
+    if not sources:
+        return {
+            "answer": result["answer"],
+            "sources": sources,
+            "retry_reason": "retrieval_empty",
+            "retry_count": 0,
+        }
+    
+    # Normal path: retrieval succeeded
+    return {"answer": result["answer"], "sources": sources}
 
 def answer_with_calculation(state: GraphState, llm=llm) -> GraphState:
     CALCULATION_PROMPT = dedent(f"""\
