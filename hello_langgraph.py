@@ -15,6 +15,9 @@ load_dotenv()
 
 llm = ChatAnthropic(model="claude-haiku-4-5-20251001")
 
+MAX_RETRIES = 1  # hard cap — enforced defensively in should_retry_document_lookup,
+                  # not just relied on via graph topology
+                   
 class Node(Enum):
     CLASSIFY = "classify"
     DOCUMENT_PATH = "document_path"
@@ -33,8 +36,8 @@ class GraphState(TypedDict):
     classification: NotRequired[str]
     answer: NotRequired[str]
     sources: NotRequired[list[str]]
-    retry_count: NotRequired[int]
-    retry_reason: NotRequired[str]
+    retried: NotRequired[bool]
+    retry_reason: NotRequired[str]  # for debugging purposes
     history: Annotated[list[dict], add]
 
 class CalculationRequest(BaseModel):
@@ -147,6 +150,8 @@ def classify_question(state: GraphState, llm=llm) -> GraphState:
 def record_turn(state: GraphState) -> GraphState:
     return {
         "history": [{"question": state["question"], "answer": state["answer"]}],
+        "retry_reason": None,
+        "retried": False,
     }
 
 def format_history(history: list[dict]) -> str:
@@ -159,25 +164,52 @@ def answer_general(state: GraphState) -> GraphState:
     return {"answer": response.content, "sources": []}
 
 
-def answer_from_document(state: GraphState) -> GraphState:
+def query_document_service(question: str, use_query_rewriting: bool = False) -> dict:
     response = httpx.post(
         "http://localhost:8000/query",
-        json={"question": state["resolved_question"], "n_results": 8},
+        json={
+            "question": question,
+            "n_results": 8,
+            "use_query_rewriting": use_query_rewriting,
+        },
     )
-    result = response.json()
+    return response.json()
+
+
+def answer_from_document(state: GraphState) -> GraphState:
+    result = query_document_service(state["resolved_question"])
     sources = result.get("sources", [])
-    
-    # Trigger detection: if retrieval is empty, flag for retry
+
     if not sources:
         return {
             "answer": result["answer"],
             "sources": sources,
-            "retry_reason": "retrieval_empty",
-            "retry_count": 0,
+            "retry_reason": "retrieval_empty",  # debug/demo label only — not read by routing
         }
-    
-    # Normal path: retrieval succeeded
+
     return {"answer": result["answer"], "sources": sources}
+
+
+def retry_document_lookup(state: GraphState) -> GraphState:
+    result = query_document_service(state["resolved_question"], use_query_rewriting=True)
+    sources = result.get("sources", [])
+    return {
+        "answer": result["answer"],
+        "sources": sources,
+        "retried": True,
+    }
+
+def should_retry_document_lookup(state: GraphState) -> str:
+    if not state.get("sources") and not state.get("retried", False):
+        return "retry"
+    return "no_retry"
+
+
+def should_fallback_to_general(state: GraphState) -> str:
+    if not state.get("sources"):
+        return Node.GENERAL_PATH.value
+    return "record_turn"
+
 
 def answer_with_calculation(state: GraphState, llm=llm) -> GraphState:
     CALCULATION_PROMPT = dedent(f"""\
@@ -261,6 +293,7 @@ graph.add_node(Node.CALCULATION_PATH.value, answer_with_calculation)
 
 graph.set_entry_point("condense_question")
 graph.add_edge("condense_question", Node.CLASSIFY.value)
+graph.add_node("retry_document_lookup", retry_document_lookup)
 
 graph.add_conditional_edges(
     Node.CLASSIFY.value,
@@ -271,9 +304,24 @@ graph.add_conditional_edges(
         Node.CALCULATION_PATH.value: Node.CALCULATION_PATH.value,
     }
 )
+graph.add_conditional_edges(
+    Node.DOCUMENT_PATH.value,
+    should_retry_document_lookup,
+    {
+        "retry": "retry_document_lookup",
+        "no_retry": "record_turn",
+    },
+)
+graph.add_conditional_edges(
+    "retry_document_lookup",
+    should_fallback_to_general,
+    {
+        Node.GENERAL_PATH.value: Node.GENERAL_PATH.value,
+        "record_turn": "record_turn",
+    },
+)
 graph.add_node("record_turn", record_turn)
 
-graph.add_edge(Node.DOCUMENT_PATH.value, "record_turn")
 graph.add_edge(Node.GENERAL_PATH.value, "record_turn")
 graph.add_edge(Node.CALCULATION_PATH.value, "record_turn")
 graph.add_edge("record_turn", END)
@@ -286,8 +334,8 @@ if __name__ == "__main__":
 
     conversation = [
         "What effect did the spring daylight saving transition have on MI "
-        "rates, according to the Sadhu et al. analysis in the diabetes "
-        "cardiovascular outcomes review?",
+            "rates, according to the Sadhu et al. analysis in the diabetes "
+            "cardiovascular outcomes review?",
         "What about the fall transition?",
         "And what's that spring percentage increase times 3, rounded to 1 decimal place?",
     ]
