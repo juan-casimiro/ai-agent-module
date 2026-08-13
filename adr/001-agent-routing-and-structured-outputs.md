@@ -91,23 +91,22 @@ clear error.
   through agent-level testing, confirming the same issue found in
   isolated RAG evaluation also affects end-to-end agent behavior.
 
-## Update: Corpus scope narrowed to BIOMED, category split planned
+## Update: Corpus scope narrowed to BIOMED, category introduced
 
 The `ai-research-assistant` corpus has been narrowed to biomedical
 content only (diabetes, cardiology, oncology — see that project's
-`corpus_manifest.json`). The current `Category` enum (`BIOMED`,
-`CALCULATION`, `GENERAL`) still treats document-lookup as
-domain-agnostic, which is no longer an honest reflection of what the
-underlying service can actually answer.
+`corpus_manifest.json`). The document-lookup path is therefore
+BIOMED-specific: a non-biomed document question either misroutes to
+`GENERAL` or hits empty/irrelevant retrieval.
 
 **Decision:** introduce a dedicated `BIOMED` category rather than
-continuing to route biomed document questions through a generically-
-named `BIOMED` category. This is deliberate, not just a rename:
+routing biomed document questions through a generically-named category.
+This is deliberate, not just a rename:
 
 - It keeps `Category` an honest contract (per this ADR's own principle
   above — plain types/names that reflect actual runtime meaning),
-  rather than `BIOMED` quietly meaning "biomed document" everywhere
-  it's read.
+  rather than a generic category quietly meaning "biomed document"
+  everywhere it's read.
 - It leaves room for biomed-specific behavior beyond routing — e.g. a
   prompt tuned for clinical terminology, or tool-specific handling —
   without overloading a generic category name.
@@ -115,13 +114,21 @@ named `BIOMED` category. This is deliberate, not just a rename:
   domain-agnostic pipeline currently pointed at a biomed corpus — same
   distinction being drawn here at the agent-routing level.
 
-**Not yet implemented** — this is a recorded decision for upcoming
-work, not a completed change. When implemented: `Category` gains
-`BIOMED`, `classify_question`'s prompt and examples are updated to
-distinguish biomed document questions from general document questions
-(if `GENERAL` document-lookup returns), and `route_decision`'s mapping
-is extended accordingly. The fail-loud check (see above) should catch
-any gap in that mapping automatically, per its original purpose.
+**Implemented (2026-08-12):** `Category` includes `BIOMED`,
+`classify_question`'s prompt and examples route biomed document
+questions to it, and `route_decision`'s mapping is extended
+accordingly. The fail-loud check (see above) covers any future gap in
+that mapping automatically.
+
+**Still open — biomed-specific behavior beyond routing.** Introducing
+the category is the routing-level change only. The biomed-specific
+*behavior* the decision anticipated is not yet built: a clinical-
+terminology-tuned prompt on the document path, tool-specific handling,
+or a finer `BIOMED_TASK` split distinguishing biomed document lookup
+from a future biomed-specific task category. Tracked as future work in
+the README's "Possible future improvements"; recorded here so the
+category's introduction isn't mistaken for the full domain-specific
+capability it leaves room for.
 
 ## Update: Conversation memory, query condensation, and the reducer trap
 
