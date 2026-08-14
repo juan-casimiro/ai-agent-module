@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from hello_langgraph import classify_question, Classification, Category
+import hello_langgraph
 
 
 def _fake_llm(category: Category) -> MagicMock:
@@ -17,9 +18,9 @@ def _fake_llm(category: Category) -> MagicMock:
     Category.CALCULATION,
     Category.GENERAL,
 ])
-def test_classify_question_writes_category_value(category):
-    state = {"resolved_question": "irrelevant, LLM call is faked"}
-    result = classify_question(state, llm=_fake_llm(category))
+def test_classify_question_writes_category_value(category, monkeypatch):
+    monkeypatch.setattr(hello_langgraph, "llm", _fake_llm(category))
+    result = classify_question({"resolved_question": "irrelevant, LLM call is faked"})
 
     # The node must persist the plain .value string, never the raw enum
     # (ADR-001: the string-vs-enum bug this test exists to guard).

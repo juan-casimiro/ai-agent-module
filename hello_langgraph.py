@@ -113,7 +113,7 @@ def condense_question(state: GraphState) -> GraphState:
         "condensation_reasoning": condensed.reasoning,
     }
 
-def classify_question(state: GraphState, llm=llm) -> GraphState:
+def classify_question(state: GraphState) -> GraphState:
     CLASSIFICATION_PROMPT = dedent(f"""\
         # Role
         You are a routing assistant for a multi-tool system. Your job is to decide \
@@ -239,7 +239,7 @@ def should_fallback_to_general(state: GraphState) -> str:
     return "record_turn"
 
 
-def answer_with_calculation(state: GraphState, llm=llm) -> GraphState:
+def answer_with_calculation(state: GraphState) -> GraphState:
     CALCULATION_PROMPT = dedent(f"""\
         # Role
         You are a precise calculation-extraction assistant. Your job is to parse \
