@@ -16,9 +16,6 @@ load_dotenv()
 
 llm = ChatAnthropic(model="claude-haiku-4-5-20251001")
 
-MAX_RETRIES = 1  # hard cap — enforced defensively in should_retry_document_lookup,
-                  # not just relied on via graph topology
-
 GENERAL_SYSTEM_PROMPT = dedent("""\
     Answer in plain prose, under 150 words. No markdown headers, tables,
     or bullet lists — the output is printed to a terminal. Be direct and
@@ -179,27 +176,14 @@ def format_history(history: list[dict]) -> str:
     )
 
 def answer_general(state: GraphState) -> GraphState:
-    question = state["resolved_question"]
     system_prompt = GENERAL_SYSTEM_PROMPT
 
     if state.get("retried"):
         system_prompt = f"{system_prompt}\n{UNGROUNDED_FALLBACK_PROMPT}"
 
-        question = dedent(f"""\
-            The following question was routed to document retrieval, but the
-            document corpus did not contain sufficient information to answer it.
-            You are answering from general knowledge only.
-
-            Begin your answer by stating plainly that this answer is not grounded
-            in the document corpus. Do not invent specific findings, figures, gene
-            names, or study results. If you do not know, say so.
-
-            Question: {question}
-            """)
-
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=question),
+        HumanMessage(content=state["resolved_question"]),
     ]
 
     response = llm.invoke(messages)
