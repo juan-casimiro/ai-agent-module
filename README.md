@@ -108,6 +108,12 @@ reasoning behind: structured outputs over prompted JSON, `simpleeval`
 over raw `eval()`, `GraphState` type consistency, and the fail-loud
 routing check.
 
+See [ADR-002](./adr/002-recursive-retry-loop.md) for the retry loop's
+design: the `context_sufficient` trigger, why query rewriting is the
+retry lever despite `ai-research-assistant`'s own null result on it,
+the fallback/retry-cap mechanics, and what's proven vs. assumed about
+recovery.
+
 ## Known limitations
 
 - The document-lookup path is BIOMED-specific right now
@@ -141,7 +147,12 @@ A non-biomed document question will either get misrouted to `GENERAL` or hit emp
   purpose-built recovery strategy was considered but not implemented,
   in favor of keeping this project's scope on the orchestration
   pattern rather than retrieval-quality tuning.
-  
+  Separately: the recovery branch is proven correct only via a mocked
+  test (`test_insufficient_then_sufficient_recovers`) and has never been
+  observed succeeding on a real, non-mocked query — the one live run on
+  record (JUA-15) used an off-corpus question no retrieval strategy
+  could have recovered. See ADR-002 for the full reasoning.
+
 ## Possible future improvements
 
 - Mocked classification tests / end-to-end graph integration tests
@@ -149,6 +160,11 @@ A non-biomed document question will either get misrouted to `GENERAL` or hit emp
   edges exist; the HTTP-calling nodes and prompt-assembly branches are
   currently only verified manually via the demo script)
 - Additional tools (e.g., web search)
-- Query rewriting or hybrid search on the document-lookup path, to
-  address the phrasing-sensitivity limitation
+- Hybrid (BM25 + dense) search on the retry path specifically. Query
+  rewriting is already implemented as the retry lever
+  (`retry_document_lookup`, `use_query_rewriting=True`); BM25 exists in
+  the underlying RAG service but isn't currently exposed as a retry
+  option. Not evaluated for this use case — see
+  `ai-research-assistant`'s ADR-001, where BM25 alone caused one
+  attributable regression on the golden QA set.
 - This project will grow biomed-specific capability (tools, prompts, maybe a dedicated BIOMED_TASK category)

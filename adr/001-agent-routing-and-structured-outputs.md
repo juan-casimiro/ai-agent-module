@@ -168,52 +168,8 @@ structured outputs over parsed text. `reasoning` is not written into
 `history` — history's only consumer is future condensation prompts, and
 debug commentary has no value there while adding token cost.
 
+## Update: retry trigger moved to ADR-002
 
-## Update: Retry trigger replaced — `context_sufficient` flag over `sources`
-
-### Problem: the original trigger never fired
-
-Retry (JUA-9/10) fired on `if not sources`. Testing showed this is
-dead code: Chroma's `collection.query()` returns the *n* nearest
-neighbours with no relevance cutoff, so there's always a "nearest"
-chunk, however irrelevant. Confirmed in `eval_results_baseline.json` —
-`unanswerable` queries return fully-populated sources at both n=3 and
-n=8. Real failure mode is low relevance, not zero results.
-
-### Decision: structured `context_sufficient` flag from the RAG service
-
-The answering LLM already judges sufficiency in prose when it refuses
-to answer — the fix captures that judgement as structured output
-(`with_structured_output`, `GroundedAnswer` schema) instead of
-discarding it.
-
-`ai-agent-module` routes on the flag instead of source count:
-
-- Both `answer_from_document` and `retry_document_lookup` write it —
-  required, since `should_fallback_to_general` reads state *after*
-  the retry node runs.
-- Both edge functions default a missing key to `True`
-  (never-retry / keep-the-answer). Load-bearing default, asserted in
-  `tests/test_retry_stopping_condition.py`.
-- `record_turn` resets the flag every turn to prevent leakage across
-  questions.
-
-**Verified** on an off-corpus question (HCR-FISH imaging, not in the
-corpus): retry fired, rewrite still insufficient, fell back to
-`answer_general` with the ungrounded caveat — no fabricated findings.
-
-### Alternatives rejected
-
-- **Reranker score** (already computed, discarded in `retrieve()`) —
-  needs a calibration pass to find a threshold; corpus-dependent.
-  Deferred, not ruled out.
-- **Agent-side classification** of the answer text — asks a model
-  that never saw the retrieved chunks to re-infer a judgement the
-  RAG service already made and threw away. Extra LLM call, wrong
-  layer.
-
-### Known limitation
-
-`context_sufficient` is an LLM self-assessment — not perfectly
-reliable in either direction. Better than the alternatives evaluated,
-not guaranteed.
+The retry-loop design (trigger, single-retry decision, fallback,
+alternatives rejected, and the cross-repo query-rewriting reconciliation)
+is documented separately in [ADR-002](./002-recursive-retry-loop.md).
