@@ -91,6 +91,16 @@ The script also runs a fourth, isolated check on a second `thread_id`,
 reusing turn 2's exact follow-up phrasing with no prior history, to
 confirm conversation state does not leak across threads.
 
+A fifth, isolated scenario (`demo-thread-retry-scenario`) triggers the
+retry → fallback/recovery loop against the real, running RAG service,
+using a genuinely off-corpus question (HCR-FISH imaging in *M.
+tuberculosis*-infected lung tissue — not present in the ingested
+biomedical corpus; see ADR-001). The script reports whichever outcome
+actually occurs rather than assuming one; `retried` and
+`context_sufficient` are captured mid-graph via
+`app.stream(..., stream_mode="values")`, since `record_turn` resets
+both fields before the final state is returned.
+
 ## Design decisions
 
 See [ADR-001](./adr/001-agent-routing-and-structured-outputs.md) for the
@@ -119,7 +129,19 @@ A non-biomed document question will either get misrouted to `GENERAL` or hit emp
 - `MemorySaver` is in-memory only — conversation history does not
   survive a process restart. Deliberate choice for a portfolio project,
   not a production-readiness gap (see ADR-001 update).
-
+- The retry mechanism (conditional edges, retry-cap termination, state
+  tracking) was built to practice self-correcting agent-loop design —
+  that architecture is what this exercise tests, and it's what
+  `tests/test_graph_retry_integration.py` and JUA-15's live demo verify.
+  The specific recovery lever it reuses (`ai-research-assistant`'s
+  query rewriting) was chosen for consistency with an existing
+  capability, not for expected efficacy: that project's own evaluation
+  (ADR-001, 111 scored queries, two corpus sizes) already showed
+  rewriting produces zero verdict changes on this corpus. A different,
+  purpose-built recovery strategy was considered but not implemented,
+  in favor of keeping this project's scope on the orchestration
+  pattern rather than retrieval-quality tuning.
+  
 ## Possible future improvements
 
 - Mocked classification tests / end-to-end graph integration tests
