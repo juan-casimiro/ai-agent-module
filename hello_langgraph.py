@@ -4,6 +4,7 @@ import re
 from textwrap import dedent
 from typing import Annotated, Optional, TypedDict, NotRequired
 import httpx
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
 from langchain_anthropic import ChatAnthropic
 from dotenv import load_dotenv
@@ -17,7 +18,13 @@ llm = ChatAnthropic(model="claude-haiku-4-5-20251001")
 
 MAX_RETRIES = 1  # hard cap — enforced defensively in should_retry_document_lookup,
                   # not just relied on via graph topology
-                   
+
+GENERAL_SYSTEM_PROMPT = dedent("""\
+    Answer in plain prose, under 150 words. No markdown headers, tables,
+    or bullet lists — the output is printed to a terminal. Be direct and
+    concrete; do not pad with structure.
+    """)
+            
 class Node(Enum):
     CLASSIFY = "classify"
     DOCUMENT_PATH = "document_path"
@@ -35,6 +42,7 @@ class GraphState(TypedDict):
     condensation_reasoning: NotRequired[str]
     classification: NotRequired[str]
     answer: NotRequired[str]
+    context_sufficient: NotRequired[bool]
     sources: NotRequired[list[str]]
     retried: NotRequired[bool]
     retry_reason: NotRequired[str]  # for debugging purposes
@@ -152,6 +160,7 @@ def record_turn(state: GraphState) -> GraphState:
         "history": [{"question": state["question"], "answer": state["answer"]}],
         "retry_reason": None,
         "retried": False,
+        "context_sufficient": True,
     }
 
 def format_history(history: list[dict]) -> str:
@@ -160,7 +169,27 @@ def format_history(history: list[dict]) -> str:
     )
 
 def answer_general(state: GraphState) -> GraphState:
-    response = llm.invoke(state["resolved_question"])
+    question = state["resolved_question"]
+
+    if state.get("retried"):
+        question = dedent(f"""\
+            The following question was routed to document retrieval, but the
+            document corpus did not contain sufficient information to answer it.
+            You are answering from general knowledge only.
+
+            Begin your answer by stating plainly that this answer is not grounded
+            in the document corpus. Do not invent specific findings, figures, gene
+            names, or study results. If you do not know, say so.
+
+            Question: {question}
+            """)
+
+    messages = [
+        SystemMessage(content=GENERAL_SYSTEM_PROMPT),
+        HumanMessage(content=question),
+    ]
+
+    response = llm.invoke(messages)
     return {"answer": response.content, "sources": []}
 
 
@@ -172,22 +201,22 @@ def query_document_service(question: str, use_query_rewriting: bool = False) -> 
             "n_results": 8,
             "use_query_rewriting": use_query_rewriting,
         },
+        timeout=60.0,  # RAG service does retrieval + reranking + an LLM call
     )
     return response.json()
 
 
 def answer_from_document(state: GraphState) -> GraphState:
     result = query_document_service(state["resolved_question"])
-    sources = result.get("sources", [])
+    context_sufficient = result.get("context_sufficient", True)
 
-    if not sources:
-        return {
-            "answer": result["answer"],
-            "sources": sources,
-            "retry_reason": "retrieval_empty",  # debug/demo label only — not read by routing
-        }
-
-    return {"answer": result["answer"], "sources": sources}
+    return {
+        "answer": result["answer"],
+        "sources": result.get("sources", []),
+        "context_sufficient": context_sufficient,
+        # debug/demo label only — not read by routing
+        "retry_reason": None if context_sufficient else result.get("insufficiency_reason"),
+    }
 
 
 def retry_document_lookup(state: GraphState) -> GraphState:
@@ -200,13 +229,13 @@ def retry_document_lookup(state: GraphState) -> GraphState:
     }
 
 def should_retry_document_lookup(state: GraphState) -> str:
-    if not state.get("sources") and not state.get("retried", False):
+    if not state.get("context_sufficient", True) and not state.get("retried", False):
         return "retry"
     return "no_retry"
 
 
 def should_fallback_to_general(state: GraphState) -> str:
-    if not state.get("sources"):
+    if not state.get("context_sufficient", True):
         return Node.GENERAL_PATH.value
     return "record_turn"
 
