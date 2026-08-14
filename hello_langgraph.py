@@ -222,9 +222,11 @@ def answer_from_document(state: GraphState) -> GraphState:
 def retry_document_lookup(state: GraphState) -> GraphState:
     result = query_document_service(state["resolved_question"], use_query_rewriting=True)
     sources = result.get("sources", [])
+    context_sufficient = result.get("context_sufficient", True)
     return {
         "answer": result["answer"],
         "sources": sources,
+        "context_sufficient": context_sufficient,
         "retried": True,
     }
 
@@ -362,9 +364,7 @@ if __name__ == "__main__":
     config = {"configurable": {"thread_id": thread_id}}
 
     conversation = [
-        "What effect did the spring daylight saving transition have on MI "
-            "rates, according to the Sadhu et al. analysis in the diabetes "
-            "cardiovascular outcomes review?",
+        "How does HCR-FISH enable the visualization of M. tuberculosis mRNA in intact lung and lesion tissue, and what bacterial processes did this approach reveal to vary spatially and temporally?",
         "What about the fall transition?",
         "And what's that spring percentage increase times 3, rounded to 1 decimal place?",
     ]
