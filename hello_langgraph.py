@@ -24,7 +24,17 @@ GENERAL_SYSTEM_PROMPT = dedent("""\
     or bullet lists — the output is printed to a terminal. Be direct and
     concrete; do not pad with structure.
     """)
-            
+
+UNGROUNDED_FALLBACK_PROMPT = dedent("""\
+    This question was routed to document retrieval, but the document corpus
+    did not contain sufficient information to answer it. You are answering
+    from general knowledge only.
+
+    Begin your answer by stating plainly that it is not grounded in the
+    document corpus. Do not invent specific findings, figures, gene names,
+    or study results. If you do not know, say so.
+    """)
+
 class Node(Enum):
     CLASSIFY = "classify"
     DOCUMENT_PATH = "document_path"
@@ -170,8 +180,11 @@ def format_history(history: list[dict]) -> str:
 
 def answer_general(state: GraphState) -> GraphState:
     question = state["resolved_question"]
+    system_prompt = GENERAL_SYSTEM_PROMPT
 
     if state.get("retried"):
+        system_prompt = f"{system_prompt}\n{UNGROUNDED_FALLBACK_PROMPT}"
+
         question = dedent(f"""\
             The following question was routed to document retrieval, but the
             document corpus did not contain sufficient information to answer it.
@@ -185,7 +198,7 @@ def answer_general(state: GraphState) -> GraphState:
             """)
 
     messages = [
-        SystemMessage(content=GENERAL_SYSTEM_PROMPT),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=question),
     ]
 
