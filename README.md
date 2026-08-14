@@ -19,7 +19,14 @@ classify_question — LLM classifies intent via structured output
 route_decision — routes based on classification
 │
 ├── BIOMED ──────► answer_from_document
-│ (calls the Research Assistant RAG service, BIOMED specific content)
+│   (calls the Research Assistant RAG service)
+│   │
+│   ├─ context_sufficient=False, first attempt → retry_document_lookup
+│   │    (retries with query rewriting)
+│   │    ├─ still insufficient → answer_general (ungrounded-fallback caveat)
+│   │    └─ sufficient → record_turn
+│   │
+│   └─ context_sufficient=True → record_turn
 │
 ├── CALCULATION ───► answer_with_calculation
 │ (LLM extracts expression + precision,
@@ -97,6 +104,10 @@ routing check.
 (the underlying RAG service's corpus is scoped to diabetes, cardiology, and oncology — see `corpus_manifest.json` in the `ai-research-assistant` project).
 A non-biomed document question will either get misrouted to `GENERAL` or hit empty/irrelevant retrieval.
 - The document-lookup path inherits all known limitations of the underlying RAG service (see that project's ADR), including sensitivity to exact query phrasing.
+- The retry trigger (`context_sufficient`) is an LLM's self-assessment of
+  whether retrieved context was enough to answer — not perfectly
+  reliable, and not a guarantee against false positives/negatives. See
+  ADR-001 for the reasoning and the trigger it replaced.
 - Conversation history is unbounded and passed as raw text into every
   `condense_question` call. Fine for short demo conversations; a long-
   running conversation would grow the condensation prompt (and its
@@ -111,12 +122,11 @@ A non-biomed document question will either get misrouted to `GENERAL` or hit emp
 
 ## Possible future improvements
 
-## Possible future improvements
-
+- Mocked classification tests / end-to-end graph integration tests
+  (unit tests for routing, calculation safety, and the retry/fallback
+  edges exist; the HTTP-calling nodes and prompt-assembly branches are
+  currently only verified manually via the demo script)
 - Additional tools (e.g., web search)
 - Query rewriting or hybrid search on the document-lookup path, to
   address the phrasing-sensitivity limitation
 - This project will grow biomed-specific capability (tools, prompts, maybe a dedicated BIOMED_TASK category)
-- Automated tests (unit tests for `route_decision` and the calculation
-  safety regex/`simpleeval` boundary, then mocked classification tests)
-  — currently the only verification is this manual demo script
