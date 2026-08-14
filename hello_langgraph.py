@@ -377,7 +377,9 @@ if __name__ == "__main__":
     config = {"configurable": {"thread_id": thread_id}}
 
     conversation = [
-        "How does HCR-FISH enable the visualization of M. tuberculosis mRNA in intact lung and lesion tissue, and what bacterial processes did this approach reveal to vary spatially and temporally?",
+        "What effect did the spring daylight saving transition have on MI "
+            "rates, according to the Sadhu et al. analysis in the diabetes "
+            "cardiovascular outcomes review?",
         "What about the fall transition?",
         "And what's that spring percentage increase times 3, rounded to 1 decimal place?",
     ]
