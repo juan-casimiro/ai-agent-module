@@ -384,3 +384,35 @@ if __name__ == "__main__":
         print()
 
     print(f"Final history length: {len(final_state['history'])}")
+
+
+    retry_thread_id = "demo-thread-retry-scenario"
+    retry_config = {"configurable": {"thread_id": retry_thread_id}}
+    retry_question = (
+        "How does HCR-FISH enable the visualization of M. tuberculosis mRNA "
+        "in intact lung and lesion tissue, and what bacterial processes did "
+        "this approach reveal to vary spatially and temporally?"
+    )
+
+    retried_flag = False
+    outcome = None
+    final_state = None
+
+    for state in app.stream({"question": retry_question}, config=retry_config, stream_mode="values"):
+        final_state = state
+        if state.get("retried") and outcome is None:
+            # captured right after retry_document_lookup, before record_turn
+            # resets both fields back to their defaults
+            outcome = "recovery" if state.get("context_sufficient") else "fallback"
+            retried_flag = True
+
+    print("--- Retry scenario ---")
+    print(f"Question:          {retry_question}")
+    print(f"Resolved question: {final_state.get('resolved_question')}")
+    print(f"Condensation reason: {final_state.get('condensation_reasoning', '(no history — skipped)')}")
+    print(f"Classification:    {final_state['classification']}")
+    print(f"Answer:            {final_state['answer']}")
+    if final_state.get("sources"):
+        print(f"Sources:           {', '.join(final_state['sources'])}")
+    print(f"Retry occurred:    {retried_flag}")
+    print(f"Retry outcome:     {outcome if retried_flag else 'n/a'}")
