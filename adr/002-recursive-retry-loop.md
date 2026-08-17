@@ -35,7 +35,7 @@ implementation; this repo only consumes the flag.
 This needs to be stated plainly rather than glossed over: `ai-research-assistant`'s
 own golden QA evaluation found query rewriting to be a **measured no-op**
 on its corpus — zero verdict changes across 111 scored queries, at both
-n=3 and n=8, re-confirmed after the corpus grew from 16 to 19 documents (outliner cluster).
+n=3 and n=8, re-confirmed after the corpus grew from 16 to 19 documents (outlier cluster).
 Rewriting is consequently opt-in there and defaults to `False`. This
 project turns the same flag on unconditionally on every retry. Read
 both repos back to back and that's a contradiction with nothing
