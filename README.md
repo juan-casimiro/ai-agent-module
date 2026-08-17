@@ -4,6 +4,8 @@ A LangGraph agent that classifies a user's question and routes it to one
 of three tools: document-grounded retrieval (RAG), precise calculation,
 or direct general-knowledge answering.
 
+**What's proven vs. assumed:** the routing, calculation-safety, and retry/fallback control flow are covered by a mocked unit + integration test suite (`tests/`), and the retry → fallback path has been verified once end-to-end against the real, running RAG service. What's *not* yet measured: classification accuracy and retrieval-sufficiency accuracy against ground truth (tracked as open work), and whether the retry can actually recover a real, previously-insufficient query — the one live run on record used an off-corpus question no retry strategy could have fixed. See [ADR-002](./adr/002-recursive-retry-loop.md) for the full breakdown.
+
 ## Architecture
 ```
 Question
