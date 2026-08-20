@@ -172,8 +172,3 @@ A non-biomed document question will either get misrouted to `GENERAL` or hit emp
   `ai-research-assistant`'s ADR-001, where BM25 alone caused one
   attributable regression on the golden QA set.
 - This project will grow biomed-specific capability (tools, prompts, maybe a dedicated BIOMED_TASK category)
-- The retry trigger (`context_sufficient`) is an LLM's self-assessment of
-  whether retrieved context was enough to answer. Measured against golden
-  QA ground truth (JUA-19): 19.0% false-positive rate, 17.2%
-  false-negative rate — see ADR-002 for the full numbers and what the
-  false-positive rate means for the retry loop specifically.
