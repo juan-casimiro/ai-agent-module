@@ -106,6 +106,24 @@ of every turn, so a flag from one question can't leak into the next.
   for scope discipline. Adding an unvalidated new component on top of
   an already-unmeasured lever compounds uncertainty instead of
   resolving it.
+
+## Update: context_sufficient measured against golden QA (JUA-19)
+
+The flag's own accuracy — not the retry's effect, the flag's raw
+reliability — has now been measured against golden QA ground truth in
+`ai-research-assistant`: 19.0% false-positive rate (4/21 unanswerable
+queries incorrectly flagged sufficient) and 17.2% false-negative rate
+(5/29 known-good queries incorrectly flagged insufficient). Full
+methodology and numbers in that project's ADR-001.
+
+This matters for the retry loop specifically: a false positive means a
+possibly-ungrounded answer is returned with no retry at all — the
+sufficiency check is not a reliable gate against that failure mode
+roughly one time in five. A false negative just costs one unnecessary
+retry, which this design already treats as cheap. The two error rates
+being close in magnitude means the flag isn't safely biased toward the
+cheaper failure mode; it's wrong in both directions at a similar rate.
+
 - **Reranker score threshold.** The cross-encoder score is already
   computed during retrieval and discarded. Using it as a sufficiency
   signal was considered, but needs a calibration pass to find a
@@ -143,3 +161,20 @@ stand in for the second.
   missing-key defaults.
 - The live demo scenario in `hello_langgraph.py` — the one real-world
   verification run on record.
+
+## Update: context_sufficient false-positive rate fixed (JUA-19)
+
+`ai-research-assistant` measured and fixed the flag's dominant failure
+mode: a 19.0% false-positive rate (flag says sufficient when it isn't)
+was traced to two causes — relevant-but-non-answering context, and
+cited background mistaken for the current study's finding — and
+eliminated via prompt/schema tightening, verified at 0% across
+repeated runs. This directly reduces the risk this ADR flagged
+earlier: a false positive here means `should_retry_document_lookup`
+never fires, and a possibly-ungrounded answer reaches the user with no
+retry and no caveat.
+
+The false-negative rate (17.2%) is unaffected and unchanged. That's
+the lower-stakes direction for this system — it only costs one
+wasted retry — so it was deliberately left unaddressed. Full numbers
+and methodology in `ai-research-assistant`'s ADR-001.

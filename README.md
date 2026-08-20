@@ -122,10 +122,12 @@ recovery.
 (the underlying RAG service's corpus is scoped to diabetes, cardiology, and oncology — see `corpus_manifest.json` in the `ai-research-assistant` project).
 A non-biomed document question will either get misrouted to `GENERAL` or hit empty/irrelevant retrieval.
 - The document-lookup path inherits all known limitations of the underlying RAG service (see that project's ADR), including sensitivity to exact query phrasing.
-- The retry trigger (`context_sufficient`) is an LLM's self-assessment of
-  whether retrieved context was enough to answer — not perfectly
-  reliable, and not a guarantee against false positives/negatives. See
-  ADR-001 for the reasoning and the trigger it replaced.
+- The retry trigger (`context_sufficient`) is an LLM's self-assessment
+  of whether retrieved context was enough to answer. Its dominant
+  false-positive failure mode (19.0%) was found and fixed (JUA-19);
+  false negatives remain at 17.2%, deliberately deprioritized since
+  they only cost a retry rather than letting an under-supported answer
+  through. See ADR-002 for the full numbers.
 - Conversation history is unbounded and passed as raw text into every
   `condense_question` call. Fine for short demo conversations; a long-
   running conversation would grow the condensation prompt (and its
@@ -170,3 +172,8 @@ A non-biomed document question will either get misrouted to `GENERAL` or hit emp
   `ai-research-assistant`'s ADR-001, where BM25 alone caused one
   attributable regression on the golden QA set.
 - This project will grow biomed-specific capability (tools, prompts, maybe a dedicated BIOMED_TASK category)
+- The retry trigger (`context_sufficient`) is an LLM's self-assessment of
+  whether retrieved context was enough to answer. Measured against golden
+  QA ground truth (JUA-19): 19.0% false-positive rate, 17.2%
+  false-negative rate — see ADR-002 for the full numbers and what the
+  false-positive rate means for the retry loop specifically.
