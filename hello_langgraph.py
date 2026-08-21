@@ -4,9 +4,9 @@ import re
 from textwrap import dedent
 from typing import Annotated, Optional, TypedDict, NotRequired
 import httpx
+from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
-from langchain_anthropic import ChatAnthropic
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from simpleeval import simple_eval
@@ -14,7 +14,8 @@ from langgraph.checkpoint.memory import MemorySaver
 
 load_dotenv()
 
-llm = ChatAnthropic(model="claude-haiku-4-5-20251001")
+LLM_MODEL="anthropic:claude-haiku-4-5-20251001"
+llm = init_chat_model(LLM_MODEL, max_tokens=1024, temperature=0)
 
 GENERAL_SYSTEM_PROMPT = dedent("""\
     Answer in plain prose, under 150 words. No markdown headers, tables,
@@ -65,6 +66,41 @@ class Classification(BaseModel):
 class CondensedQuestion(BaseModel):
     resolved_question: str
     reasoning: str  # short debug note: why the question was rewritten this way
+
+RAG_SERVICE_URL = "http://localhost:8000"
+
+# Demo scenarios assume the full evaluation corpus (19 documents). The Docker
+# quickstart seeds only its 3-article subset (~340 chunks), so a count near that
+# size means the demo is talking to the container, not a host instance with the
+# full corpus ingested. Threshold rather than exact match — chunk counts shift
+# if chunking parameters change.
+FULL_CORPUS_MIN_CHUNKS = 1000  # confirm against your own host /health
+
+
+def check_document_service() -> int:
+    """Probe the RAG service before the demo runs; return the chunk count.
+
+    Fails fast with a readable message rather than letting a connection error
+    surface mid-graph on the first BIOMED turn.
+    """
+    try:
+        response = httpx.get(f"{RAG_SERVICE_URL}/health", timeout=10.0)
+    except httpx.ConnectError:
+        print(f"[demo] ERROR: no RAG service at {RAG_SERVICE_URL} — "
+              "start it (uvicorn or docker compose up) and retry.")
+        raise SystemExit(1)
+
+    if response.status_code == 503:
+        print(f"[demo] ERROR: RAG service not ready — {response.json()}. Retry shortly.")
+        raise SystemExit(1)
+
+    chunks = response.json().get("chunks", 0)
+    print(f"[demo] RAG service ready at {RAG_SERVICE_URL} — {chunks} chunks indexed")
+    if chunks < FULL_CORPUS_MIN_CHUNKS:
+        print(f"[demo] WARNING: below the full evaluation corpus "
+              f"(expected ≥{FULL_CORPUS_MIN_CHUNKS}) — demo scenarios were written "
+              f"against the full corpus, not the Docker seed subset.")
+    return chunks
 
 def condense_question(state: GraphState) -> GraphState:
     history = state.get("history", [])

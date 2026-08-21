@@ -156,7 +156,19 @@ A non-biomed document question will either get misrouted to `GENERAL` or hit emp
   observed succeeding on a real, non-mocked query — the one live run on
   record (JUA-15) used an off-corpus question no retrieval strategy
   could have recovered. See ADR-002 for the full reasoning.
-
+- Measured `classify_question` routing accuracy against a 28-question hand-labeled
+  set (`classification_set.json`, `eval_classification.py`): **23/28 (82.1%)**. At
+  this size, one misroute moves the headline number by ~3.6 points. All 5 misroutes
+  were BIOMED questions predicted GENERAL — CALCULATION and GENERAL had zero
+  misroutes in either direction (see the confusion matrix in
+  `eval_results/classification_results.json`). Two distinct patterns:
+  (1) general-knowledge-shaped medical questions (e.g. "what is HbA1c?") route to
+  GENERAL rather than BIOMED — the current prompt doesn't yet enforce the intended
+  policy that any BIOMED-topic question should try the RAG service first, since
+  general knowledge can be outdated relative to the corpus; and (2) one off-corpus
+  biomedical mechanism question (CRISPR base editing) also misrouted to GENERAL.
+  Prompt fix tracked separately, not yet applied.
+  
 ## Possible future improvements
 
 - Mocked classification tests / end-to-end graph integration tests

@@ -1,0 +1,250 @@
+{
+  "run_at": "2026-08-21T13:08:45.988983+00:00",
+  "dataset": "classification_set.json",
+  "total": 28,
+  "correct": 23,
+  "accuracy": 0.8214285714285714,
+  "confusion_matrix": {
+    "BIOMED": {
+      "BIOMED": 7,
+      "CALCULATION": 0,
+      "GENERAL": 5
+    },
+    "CALCULATION": {
+      "BIOMED": 0,
+      "CALCULATION": 9,
+      "GENERAL": 0
+    },
+    "GENERAL": {
+      "BIOMED": 0,
+      "CALCULATION": 0,
+      "GENERAL": 7
+    }
+  },
+  "results": [
+    {
+      "id": "q01",
+      "question": "What AUC did Attia et al.'s CNN model achieve for identifying patients with prevalent AF during sinus rhythm from standard 12-lead ECGs?",
+      "trap_class": "unambiguous",
+      "gold_category": "BIOMED",
+      "predicted_category": "BIOMED",
+      "correct": true
+    },
+    {
+      "id": "q02",
+      "question": "What sample size was used in the diabetes CGM management study's clinician comparison arm?",
+      "trap_class": "unambiguous",
+      "gold_category": "BIOMED",
+      "predicted_category": "BIOMED",
+      "correct": true
+    },
+    {
+      "id": "q03",
+      "question": "What is 15% of 340, rounded to the nearest whole number?",
+      "trap_class": "unambiguous",
+      "gold_category": "CALCULATION",
+      "predicted_category": "CALCULATION",
+      "correct": true
+    },
+    {
+      "id": "q04",
+      "question": "If a train travels 60 miles in 45 minutes, what is its average speed in mph?",
+      "trap_class": "unambiguous",
+      "gold_category": "CALCULATION",
+      "predicted_category": "CALCULATION",
+      "correct": true
+    },
+    {
+      "id": "q05",
+      "question": "What's the capital of Peru?",
+      "trap_class": "unambiguous",
+      "gold_category": "GENERAL",
+      "predicted_category": "GENERAL",
+      "correct": true
+    },
+    {
+      "id": "q06",
+      "question": "Can you recommend a good strategy for learning a new programming language?",
+      "trap_class": "unambiguous",
+      "gold_category": "GENERAL",
+      "predicted_category": "GENERAL",
+      "correct": true
+    },
+    {
+      "id": "q07",
+      "question": "What is HbA1c and why is it used to monitor diabetes?",
+      "trap_class": "biomed_general_knowledge",
+      "gold_category": "BIOMED",
+      "predicted_category": "GENERAL",
+      "correct": false
+    },
+    {
+      "id": "q08",
+      "question": "In plain terms, what does a coronary CT angiogram actually show?",
+      "trap_class": "biomed_general_knowledge",
+      "gold_category": "BIOMED",
+      "predicted_category": "GENERAL",
+      "correct": false
+    },
+    {
+      "id": "q09",
+      "question": "What's the normal range for resting heart rate in adults?",
+      "trap_class": "biomed_general_knowledge",
+      "gold_category": "BIOMED",
+      "predicted_category": "GENERAL",
+      "correct": false
+    },
+    {
+      "id": "q10",
+      "question": "Why do doctors order liquid biopsies instead of tissue biopsies sometimes?",
+      "trap_class": "biomed_general_knowledge",
+      "gold_category": "BIOMED",
+      "predicted_category": "GENERAL",
+      "correct": false
+    },
+    {
+      "id": "q11",
+      "question": "What did the company's Q3 earnings report say about iPhone sales?",
+      "trap_class": "document_shaped_non_biomed",
+      "gold_category": "GENERAL",
+      "predicted_category": "GENERAL",
+      "correct": true
+    },
+    {
+      "id": "q12",
+      "question": "According to the latest annual report, what was the company's revenue growth in the EMEA region?",
+      "trap_class": "document_shaped_non_biomed",
+      "gold_category": "GENERAL",
+      "predicted_category": "GENERAL",
+      "correct": true
+    },
+    {
+      "id": "q13",
+      "question": "What did the meeting minutes say about the proposed budget cuts?",
+      "trap_class": "document_shaped_non_biomed",
+      "gold_category": "GENERAL",
+      "predicted_category": "GENERAL",
+      "correct": true
+    },
+    {
+      "id": "q14",
+      "question": "Per the manufacturer's spec sheet, what's the maximum load rating on this bracket?",
+      "trap_class": "document_shaped_non_biomed",
+      "gold_category": "GENERAL",
+      "predicted_category": "GENERAL",
+      "correct": true
+    },
+    {
+      "id": "q15",
+      "question": "In the study on CT-derived plaque characteristics, what percentage of the MACE-positive cohort had elevated FAI, and what is that as a fraction rounded to two decimal places?",
+      "trap_class": "calculation_in_biomed_clothing",
+      "gold_category": "BIOMED",
+      "predicted_category": "BIOMED",
+      "correct": true
+    },
+    {
+      "id": "q16",
+      "question": "If the liquid biopsy study's sensitivity was 82% across 340 patients, roughly how many patients had a true positive result?",
+      "trap_class": "calculation_in_biomed_clothing",
+      "gold_category": "CALCULATION",
+      "predicted_category": "CALCULATION",
+      "correct": true
+    },
+    {
+      "id": "q17",
+      "question": "The tuberculosis microbiome study sequenced samples from three patient cohorts \u2014 if each cohort had 45 samples, how many samples were sequenced in total?",
+      "trap_class": "calculation_in_biomed_clothing",
+      "gold_category": "CALCULATION",
+      "predicted_category": "CALCULATION",
+      "correct": true
+    },
+    {
+      "id": "q18",
+      "question": "What's the compound interest on $5,000 at 4% annually over 3 years?",
+      "trap_class": "arithmetic_in_general_clothing",
+      "gold_category": "CALCULATION",
+      "predicted_category": "CALCULATION",
+      "correct": true
+    },
+    {
+      "id": "q19",
+      "question": "A recipe calls for 250g of flour for 4 servings \u2014 how much do I need for 10 servings?",
+      "trap_class": "arithmetic_in_general_clothing",
+      "gold_category": "CALCULATION",
+      "predicted_category": "CALCULATION",
+      "correct": true
+    },
+    {
+      "id": "q20",
+      "question": "I'm splitting a $180 dinner bill three ways with a 20% tip \u2014 how much does each person owe?",
+      "trap_class": "arithmetic_in_general_clothing",
+      "gold_category": "CALCULATION",
+      "predicted_category": "CALCULATION",
+      "correct": true
+    },
+    {
+      "id": "q21",
+      "question": "What does HCR-FISH imaging reveal about spatial organization of microbial communities in M. tuberculosis-infected lung tissue?",
+      "trap_class": "off_corpus_biomed",
+      "gold_category": "BIOMED",
+      "predicted_category": "BIOMED",
+      "correct": true
+    },
+    {
+      "id": "q22",
+      "question": "What was the primary endpoint in the SPRINT blood pressure trial, and was it met?",
+      "trap_class": "off_corpus_biomed",
+      "gold_category": "BIOMED",
+      "predicted_category": "BIOMED",
+      "correct": true
+    },
+    {
+      "id": "q23",
+      "question": "How does CRISPR-Cas9 base editing differ mechanistically from standard CRISPR knockout?",
+      "trap_class": "off_corpus_biomed",
+      "gold_category": "BIOMED",
+      "predicted_category": "GENERAL",
+      "correct": false
+    },
+    {
+      "id": "q24",
+      "question": "What are the current NCCN guidelines for first-line treatment of stage IV non-small-cell lung cancer?",
+      "trap_class": "off_corpus_biomed",
+      "gold_category": "BIOMED",
+      "predicted_category": "BIOMED",
+      "correct": true
+    },
+    {
+      "id": "q25",
+      "question": "What mechanism explains mRNA vaccine-induced myocarditis in young male patients?",
+      "trap_class": "off_corpus_biomed",
+      "gold_category": "BIOMED",
+      "predicted_category": "BIOMED",
+      "correct": true
+    },
+    {
+      "id": "q26",
+      "question": "Given the empathy score difference of 1.062 between CA and clinician responses reported in the diabetes study, and a baseline clinician score of 3.1, what was the CA's approximate empathy score?",
+      "trap_class": "calculation_in_biomed_clothing",
+      "gold_category": "CALCULATION",
+      "predicted_category": "CALCULATION",
+      "correct": true
+    },
+    {
+      "id": "q27",
+      "question": "What's a good rule of thumb for how much protein to eat per kilogram of body weight if you're strength training?",
+      "trap_class": "biomed_general_knowledge",
+      "gold_category": "GENERAL",
+      "predicted_category": "GENERAL",
+      "correct": true
+    },
+    {
+      "id": "q28",
+      "question": "What is 24 multiplied by 3, rounded to 1 decimal place?",
+      "trap_class": "calculation_in_biomed_clothing",
+      "gold_category": "CALCULATION",
+      "predicted_category": "CALCULATION",
+      "correct": true
+    }
+  ]
+}
