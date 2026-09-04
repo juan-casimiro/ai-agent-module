@@ -69,9 +69,8 @@ class CondensedQuestion(BaseModel):
 
 RAG_SERVICE_URL = "http://localhost:8000"
 
-# Demo scenarios assume the full evaluation corpus (19 documents). The Docker
-# quickstart seeds only its 3-article subset (~340 chunks), so a count near that
-# size means the demo is talking to the container, not a host instance with the
+# Demo scenarios assume the full evaluation corpus. A low chunk count means the
+# demo is talking to the Docker container rather than a host instance with the
 # full corpus ingested. Threshold rather than exact match — chunk counts shift
 # if chunking parameters change.
 FULL_CORPUS_MIN_CHUNKS = 1000  # confirm against your own host /health
