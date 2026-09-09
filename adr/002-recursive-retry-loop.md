@@ -86,8 +86,12 @@ this document does not claim it is one.
 Both `should_retry_document_lookup` and `should_fallback_to_general`
 default a missing `context_sufficient` key to `True` — never-retry,
 keep-the-answer. This default is load-bearing, not incidental: it's
-what stops a missing or malformed RAG response from looping or
-silently discarding a possibly-good answer. Asserted directly in
+the compatibility behavior for a legacy response without the sufficiency
+field. JUA-81 adds HTTP-status and response-shape validation before the
+document nodes consume a response: a missing required `answer`, malformed
+JSON, or an invalid supplied field now raises rather than being mistaken
+for a usable answer. Transport and protocol failures do not enter the
+insufficiency retry/fallback flow. Missing-state defaults remain asserted in
 `tests/test_retry_stopping_condition.py`.
 
 `record_turn` resets both `retried` and `context_sufficient` at the end

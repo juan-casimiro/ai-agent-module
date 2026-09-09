@@ -8,7 +8,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from simpleeval import simple_eval
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -53,7 +53,7 @@ class GraphState(TypedDict):
     context_sufficient: NotRequired[bool]
     sources: NotRequired[list[str]]
     retried: NotRequired[bool]
-    retry_reason: NotRequired[str]  # for debugging purposes
+    retry_reason: NotRequired[str | None]  # for debugging purposes
     history: Annotated[list[dict], add]
 
 class CalculationRequest(BaseModel):
@@ -66,6 +66,15 @@ class Classification(BaseModel):
 class CondensedQuestion(BaseModel):
     resolved_question: str
     reasoning: str  # short debug note: why the question was rewritten this way
+
+class DocumentResponse(BaseModel):
+    """Validate the fields we consume; retain legacy missing-field defaults."""
+    model_config = ConfigDict(strict=True)
+
+    answer: str
+    sources: list[str] = Field(default_factory=list)
+    context_sufficient: bool = True
+    insufficiency_reason: str | None = None
 
 RAG_SERVICE_URL = "http://localhost:8000"
 
@@ -143,6 +152,8 @@ def condense_question(state: GraphState) -> GraphState:
         """)
 
     condensed = llm.with_structured_output(CondensedQuestion).invoke(CONDENSE_PROMPT)
+    if condensed is None:
+        raise ValueError("No structured condensation output")
     return {
         "resolved_question": condensed.resolved_question,
         "condensation_reasoning": condensed.reasoning,
@@ -194,6 +205,8 @@ def classify_question(state: GraphState) -> GraphState:
         """)
 
     classification = llm.with_structured_output(Classification).invoke(CLASSIFICATION_PROMPT)
+    if classification is None:
+        raise ValueError("No structured classification output")
 
     return {"classification": classification.category.value}
 
@@ -227,7 +240,7 @@ def answer_general(state: GraphState) -> GraphState:
 
 def query_document_service(question: str, use_query_rewriting: bool = False) -> dict:
     response = httpx.post(
-        "http://localhost:8000/query",
+        f"{RAG_SERVICE_URL}/query",
         json={
             "question": question,
             "n_results": 8,
@@ -235,7 +248,8 @@ def query_document_service(question: str, use_query_rewriting: bool = False) -> 
         },
         timeout=60.0,  # RAG service does retrieval + reranking + an LLM call
     )
-    return response.json()
+    response.raise_for_status()
+    return DocumentResponse.model_validate(response.json()).model_dump()
 
 
 def answer_from_document(state: GraphState) -> GraphState:
@@ -317,16 +331,20 @@ def answer_with_calculation(state: GraphState) -> GraphState:
         """)
 
     calc_request = llm.with_structured_output(CalculationRequest).invoke(CALCULATION_PROMPT)
+    if calc_request is None:
+        raise ValueError("No structured calculation output")
 
-    if not re.fullmatch(r"[\d\s+\-*/().]+", calc_request.expression):
-        return {"answer": f"Unsafe or unparseable expression: {calc_request.expression}"}
+    if (not re.fullmatch(r"[\d\s+\-*/().]+", calc_request.expression)
+            or "**" in calc_request.expression or "//" in calc_request.expression):
+        return {"answer": f"Unsafe or unparseable expression: {calc_request.expression}",
+                "sources": []}
 
     try:
         result = simple_eval(calc_request.expression)
     except ZeroDivisionError:
-        return {"answer": "Error: division by zero"}
+        return {"answer": "Error: division by zero", "sources": []}
     except Exception as e:
-        return {"answer": f"Invalid expression: {e}"}
+        return {"answer": f"Invalid expression: {e}", "sources": []}
     
     if calc_request.decimal_places is not None:
         result = round(result, calc_request.decimal_places)
