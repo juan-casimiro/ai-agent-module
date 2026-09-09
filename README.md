@@ -4,7 +4,7 @@ A LangGraph agent that classifies a user's question and routes it to one
 of three tools: document-grounded retrieval (RAG), precise calculation,
 or direct general-knowledge answering.
 
-**What's proven vs. assumed:** the routing, calculation-safety, and retry/fallback control flow are covered by a mocked unit + integration test suite (`tests/`), and the retry → fallback path has been verified once end-to-end against the real, running RAG service. What's *not* yet measured: classification accuracy and retrieval-sufficiency accuracy against ground truth (tracked as open work), and whether the retry can actually recover a real, previously-insufficient query — the one live run on record used an off-corpus question no retry strategy could have fixed. See [ADR-002](./adr/002-recursive-retry-loop.md) for the full breakdown.
+**What's proven vs. assumed:** routing, calculation safety, conversation state, and retry/fallback control flow are protected by deterministic unit and compiled-graph tests. See the [bounded test audit](docs/test-quality-audit.md) for coverage, effectiveness checks, and remaining risks. Classification and retrieval-sufficiency accuracy have separate measured limitations (below); deterministic fakes do not establish model accuracy. The retry → fallback path was verified once against the real RAG service, but recovery of a real, previously-insufficient query remains unobserved. See [ADR-002](./adr/002-recursive-retry-loop.md).
 
 ## Architecture
 ```
@@ -122,6 +122,11 @@ recovery.
 (the underlying RAG service's corpus is scoped to diabetes, cardiology, and oncology — see `corpus_manifest.json` in the `ai-research-assistant` project).
 A non-biomed document question will either get misrouted to `GENERAL` or hit empty/irrelevant retrieval.
 - The document-lookup path inherits all known limitations of the underlying RAG service (see that project's ADR), including sensitivity to exact query phrasing.
+- RAG transport, HTTP-status, JSON, and response-validation failures stop the
+  turn; they do not trigger query rewriting or general fallback. Missing legacy
+  `context_sufficient` still defaults to `True`, while malformed supplied fields
+  are rejected. Model parsing failures also propagate; absent structured output
+  raises a descriptive error. There is no application retry policy for these failures.
 - The retry trigger (`context_sufficient`) is an LLM's self-assessment
   of whether retrieved context was enough to answer. Its dominant
   false-positive failure mode (19.0%) was found and fixed (JUA-19);
@@ -171,10 +176,6 @@ A non-biomed document question will either get misrouted to `GENERAL` or hit emp
   
 ## Possible future improvements
 
-- Mocked classification tests / end-to-end graph integration tests
-  (unit tests for routing, calculation safety, and the retry/fallback
-  edges exist; the HTTP-calling nodes and prompt-assembly branches are
-  currently only verified manually via the demo script)
 - Additional tools (e.g., web search)
 - Hybrid (BM25 + dense) search on the retry path specifically. Query
   rewriting is already implemented as the retry lever
