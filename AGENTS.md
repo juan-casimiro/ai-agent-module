@@ -4,7 +4,6 @@ LangGraph agent routing questions to biomedical RAG, safe arithmetic, or general
 
 ## Sources
 
-- Shared process: follow the [development guidance index](https://github.com/juan-casimiro/development-config/blob/main/AGENTS.md), its Working Agreement, and applicable environment profile. Local work under `~/development/` enters through `~/development/AGENTS.md`.
 - [README](README.md): setup, demo, architecture, measured limitations, and future scope.
 - Relevant ADRs: [routing, structured outputs, and memory](adr/001-agent-routing-and-structured-outputs.md); [retry and fallback](adr/002-recursive-retry-loop.md).
 - [Test-quality audit](docs/test-quality-audit.md): behavioral protection, evidence, and remaining risks.
@@ -31,6 +30,6 @@ LangGraph agent routing questions to biomedical RAG, safe arithmetic, or general
 
 From the repository root, run `.venv/bin/python -m pytest -q` for offline regressions after the README setup. Use focused node/HTTP tests for local contracts and compiled-graph tests for routing, history, thread isolation, and retry behavior; retain the live-call guards in `conftest.py`.
 
-`python hello_langgraph.py` is a live, paid-model demo requiring the separately running RAG service. `python eval_classification.py` is a separate paid Anthropic evaluation, not an offline test or CI gate. Follow the Working Agreement's explicit approval rule for paid external verification.
+`python hello_langgraph.py` is a live, paid-model demo requiring the separately running RAG service. `python eval_classification.py` is a separate paid Anthropic evaluation, not an offline test or CI gate. Obtain explicit approval before running paid external verification.
 
 Keep this guide concise and current when project structure, commands, contracts, or durable agent guidance change. Put detailed rationale and measurements in README, ADRs, or the audit; keep transient task status in the tracker.
