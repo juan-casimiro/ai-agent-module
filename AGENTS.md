@@ -2,6 +2,12 @@
 
 LangGraph agent routing questions to biomedical RAG, safe arithmetic, or general knowledge, with conversation memory and a bounded document retry.
 
+## Shared guidance
+
+Follow the [development guidance index](https://github.com/juan-casimiro/development-config/blob/main/AGENTS.md)
+for shared process and environment instructions. If already loaded in this chat,
+reuse its completed startup and instructions.
+
 ## Sources
 
 - [README](README.md): setup, demo, architecture, measured limitations, and future scope.
