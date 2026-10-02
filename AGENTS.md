@@ -2,6 +2,13 @@
 
 LangGraph agent routing questions to biomedical RAG, safe arithmetic, or general knowledge, with conversation memory and a bounded document retry.
 
+## Shared development guidance
+
+Follow `AGENTS.md` in the `development-config` checkout beside this repository's
+main checkout (`../development-config` from the main checkout root; from a
+worktree, find the main checkout with `git worktree list`). If it is
+unavailable, report that and stop before task work.
+
 ## Sources
 
 - [README](README.md): setup, demo, architecture, measured limitations, and future scope.
