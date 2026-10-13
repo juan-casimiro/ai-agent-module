@@ -20,7 +20,7 @@ langchain-protocol==0.0.18
 langgraph==1.2.11
 langgraph-checkpoint==4.1.1
 langgraph-prebuilt==1.1.0
-langgraph-sdk==0.4.2
+langgraph-sdk==0.4.4
 langsmith==0.10.11
 orjson==3.11.9
 ormsgpack==1.12.2
